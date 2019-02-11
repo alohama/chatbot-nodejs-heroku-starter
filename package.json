@@ -4,6 +4,7 @@
   "description": "อบรมพัฒนา Line Chatbot Node.js และ Heroku จัดโดย I GEAR GEEK และ Chiangmai&amp;Co",
   "main": "server.js",
   "scripts": {
+    "dev": "npx nodemon",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -20,6 +21,7 @@
   },
   "homepage": "https://github.com/Thainainan03/chatbot-nodejs-heroku-starter#readme",
   "dependencies": {
+    "@line/bot-sdk": "^6.4.0",
     "express": "^4.16.4"
   },
   "devDependencies": {
