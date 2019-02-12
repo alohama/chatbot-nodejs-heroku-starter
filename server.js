@@ -3,7 +3,7 @@ const express = require('express');
 const middleware = require('@line/bot-sdk').middleware
 const Client = require('@line/bot-sdk').Client
 
-var request = require("request")
+const restClient = new (require('node-rest-client').Client)
 
 const app = express()
 
@@ -19,18 +19,18 @@ app.get('/', function (req, res) {
 })
 
 app.post('/webhook', middleware(config), (req, res) => {
-  console.log(req.body.events) // webhook event objects
-  console.log(req.body.destination) // user ID of the bot (optional)
+  //console.log(req.body.events) // webhook event objects
+  //console.log(req.body.destination) // user ID of the bot (optional)
   res.sendStatus(200)
   Promise
     .all(req.body.events.map(handleEvent))
 })
 
 function handleEvent(event) {
-  // let msg = {
-  //   type: "text",
-  //   text: event.message.text
-  // }
+  let msg = {
+    type: "text",
+    text: event.message.text
+  }
   if (event.message.type == 'text' && event.message.text == 'location') {
     let msg = {
       "type": "location",
@@ -43,7 +43,7 @@ function handleEvent(event) {
     //return client.replyMessage(event.replyToken, msg)
     //client.pushMessage(event.source.userId, msg)
     return client.pushMessage(event.source.userId, msg)
-  } else if (event.message.text == 'carousel') {
+  } else if (event.message.type == 'text' && event.message.text == 'carousel') {
     let msg = {
       "type": "template",
       "altText": "this is a carousel template",
@@ -113,92 +113,63 @@ function handleEvent(event) {
     }
     return client.pushMessage(event.source.userId, msg)
   }
-  // else if (event.message.text.indexOf("hello x") >= 0) {
-  //   let str = event.message.text.split(' x ');
-  //   if (str[1]) {
-  //     let num = parseInt(str[1]);
-  //     let msgBack = {
-  //       type: "text",
-  //       text: str[0].toString()
-  //     }
-  //     for (let i = 0; i < num; i++) {
-  //       client.pushMessage(event.source.userId, msgBack)
-  //       //return client.replyMessage(event.replyToken, msgBack)
-  //     }
-  //   }
-  // }
-  else if (event.message.type == 'location') {
-    //console.log(event)
-    var adr = 'https://fathomless-reaches-36581.herokuapp.com/api?lat=' + event.message.latitude + '&long=' + event.message.longitude;
-    /*var url = "http://developer.cumtd.com/api/v2.2/json/GetStop?" +
-      "key=d99803c970a04223998cabd90a741633" +
-      "&stop_id=it"*/
+  else if (event.message.type == 'text' && event.message.text.indexOf("hello x") >= 0) {
+    let str = event.message.text.split(' x ');
+    if (str[1]) {
+      let num = parseInt(str[1]);
+      let msgBack = {
+        type: "text",
+        text: str[0].toString()
+      }
+      for (let i = 0; i < num; i++) {
+        client.pushMessage(event.source.userId, msgBack)
+        //return client.replyMessage(event.replyToken, msgBack)
+      }
+    }
+  }
+  else if (event.type === 'message' && event.message.type === 'location') {
+    return handleLocationEvent(event)
+  }
 
-    request({
-      url: adr,
-      json: true
-    }, function (error, response, body) {
+}
 
-      if (!error && response.statusCode === 200) {
-        console.log(response.body) // Print the json response
-        let columns = [];
-
-        response.body.forEach(element => {
-          let item = {
-            "thumbnailImageUrl": element.aqi.icon,
-            "imageBackgroundColor": "#FFFFFF",
-            "title": element.nameTH,
-            "text": element.areaTH,
-            "defaultAction": {
+function handleLocationEvent(event) {
+  apiUrl = 'https://fathomless-reaches-36581.herokuapp.com/api'
+  return new Promise((resolve, reject) => {
+  restClient.get(`${apiUrl}?lat=${event.message.latitude}&long=${event.message.longitude}`, (data, response) => {
+      if (data) {
+        const pinData = data.map(row => ({
+          "thumbnailImageUrl": row.aqi.icon,
+          "imageBackgroundColor": "#FFFFFF",
+          "title": `PM 2.5: ${row.aqi.aqi}`,
+          "text": `${row.nameTH}, ${row.areaTH}`,
+          "actions": [
+            {
               "type": "uri",
-              "label": "View detail",
-              "uri": element.aqi.historyUrl
-            },
-            "actions": [
-              {
-                "type": "postback",
-                "label": "Buy",
-                "data": "action=buy&itemid=111"
-              }
-            ]
-          }
-          columns.push(item);
-          //console.log('columns=>>>>>>>', item);
-        });
-        console.log('columns=>>>>>>>', columns);
-        let msg = {
+              "label": "ข้อมูลย้อนหลัง",
+              "uri": row.historyUrl
+            }
+          ]
+        }))
+    
+        var msg = {
           "type": "template",
-          "altText": "this is PM2.5",
+          "altText": "ข้อมูลสถานที่",
           "template": {
             "type": "carousel",
-            "columns": [{
-              "thumbnailImageUrl": response.body[0].aqi.icon,
-              "imageBackgroundColor": "#FFFFFF",
-              "title": response.body[0].nameTH,
-              "text": response.body[0].areaTH,
-              "defaultAction": {
-                "type": "uri",
-                "label": "View detail",
-                "uri": "https://freepik.com"
-              },
-              "actions": [
-                {
-                  "type": "postback",
-                  "label": "Buy",
-                  "data": "action=buy&itemid=111"
-                }
-              ]
-            }],
+            "columns": pinData,
             "imageAspectRatio": "rectangle",
             "imageSize": "cover"
           }
         }
-        console.log(msg);
-        return client.pushMessage(event.source.userId, msg)
+
+        resolve(client.replyMessage(event.replyToken, msg))
+      } else {
+        reject()
       }
     })
-  }
-
+  })
+ 
 }
 
 app.set('port', (process.env.PORT || 4000))
